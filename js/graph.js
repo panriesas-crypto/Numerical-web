@@ -3,29 +3,57 @@ function drawFunctionGraph(a, b, root) {
     const canvas = document.getElementById("functionCanvas");
     if (!canvas) return;
 
+    if (
+        !Number.isFinite(a) ||
+        !Number.isFinite(b) ||
+        !Number.isFinite(root) ||
+        a >= b
+    ) {
+        return;
+    }
+
     const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
     const width = canvas.width;
     const height = canvas.height;
 
+    if (width <= 0 || height <= 0) return;
+
     ctx.clearRect(0, 0, width, height);
 
-    // ขอบเขตของกราฟ
-    const xMin = a - (b - a) * 0.5;
-    const xMax = b + (b - a) * 0.5;
-    const yMin = -2;
-    const yMax = Math.max(2, xMax * xMax);
+    // กำหนดขอบเขตแกน X
+    const padding = (b - a) * 0.5;
+    const xMin = a - padding;
+    const xMax = b + padding;
 
-    const toX = x => (x - xMin) / (xMax - xMin) * width;
-    const toY = y => height - (y - yMin) / (yMax - yMin) * height;
+    // ขอบเขตแกน Y สำหรับ f(x) = x² - 2
+    const yA = a * a - 2;
+    const yB = b * b - 2;
+    const yMin = Math.min(-2, yA, yB);
+    const yMax = Math.max(2, yA, yB);
 
-    // วาดแกน X และ Y
+    const toX = x =>
+        ((x - xMin) / (xMax - xMin)) * width;
+
+    const toY = y =>
+        height - ((y - yMin) / (yMax - yMin)) * height;
+
+    // วาดแกน X และ Y เมื่อแกนนั้นอยู่ในช่วงที่มองเห็น
     ctx.strokeStyle = "#999";
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(0, toY(0));
-    ctx.lineTo(width, toY(0));
-    ctx.moveTo(toX(0), 0);
-    ctx.lineTo(toX(0), height);
+
+    if (yMin <= 0 && yMax >= 0) {
+        ctx.moveTo(0, toY(0));
+        ctx.lineTo(width, toY(0));
+    }
+
+    if (xMin <= 0 && xMax >= 0) {
+        ctx.moveTo(toX(0), 0);
+        ctx.lineTo(toX(0), height);
+    }
+
     ctx.stroke();
 
     // วาดกราฟ f(x) = x² - 2
@@ -46,13 +74,28 @@ function drawFunctionGraph(a, b, root) {
 
     ctx.stroke();
 
-    // ทำเครื่องหมายตำแหน่งราก
-    ctx.fillStyle = "#dc2626";
-    ctx.beginPath();
-    ctx.arc(toX(root), toY(0), 6, 0, Math.PI * 2);
-    ctx.fill();
+    // วาดจุดรากเมื่ออยู่ในขอบเขตกราฟ
+    if (root >= xMin && root <= xMax) {
+        const rootX = toX(root);
+        const rootY = toY(0);
 
-    ctx.fillStyle = "#dc2626";
-    ctx.font = "14px sans-serif";
-    ctx.fillText(`Root ≈ ${root.toFixed(6)}`, toX(root) + 8, toY(0) - 10);
+        ctx.fillStyle = "#dc2626";
+        ctx.beginPath();
+        ctx.arc(rootX, rootY, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        const label = `Root ≈ ${root.toFixed(6)}`;
+
+        ctx.font = "14px sans-serif";
+        ctx.fillStyle = "#dc2626";
+
+        const labelWidth = ctx.measureText(label).width;
+
+        const textX =
+            rootX + labelWidth + 12 > width
+                ? rootX - labelWidth - 8
+                : rootX + 8;
+
+        ctx.fillText(label, textX, rootY - 10);
+    }
 }
