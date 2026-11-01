@@ -268,3 +268,6 @@ td, th {
     font-size: 0.8rem;
   }
 }
+body {
+  background-color: #dbeafe !important;
+}
