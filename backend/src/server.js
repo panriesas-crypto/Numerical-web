@@ -1,4 +1,3 @@
-
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -7,14 +6,18 @@ import swaggerUi from "swagger-ui-express";
 import presets from "./routes/presets.js";
 import { seedPresets } from "./seed.js";
 
+import dns from "node:dns";
+
+if (process.env.NODE_ENV !== "production") {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+}
+
 const app = express();
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
 
-const allowedOrigins = (
-  process.env.CLIENT_ORIGIN || "http://localhost:5173"
-)
+const allowedOrigins = (process.env.CLIENT_ORIGIN || "http://localhost:5173")
   .split(",")
   .map((origin) => origin.trim().replace(/\/$/, ""))
   .filter(Boolean);
@@ -29,7 +32,7 @@ app.use(
       return callback(new Error("CORS origin denied"));
     },
     methods: ["GET", "POST", "OPTIONS"],
-  })
+  }),
 );
 
 app.use(express.json({ limit: "32kb" }));
@@ -64,7 +67,7 @@ if (process.env.NODE_ENV !== "production") {
           },
         },
       },
-    })
+    }),
   );
 }
 
