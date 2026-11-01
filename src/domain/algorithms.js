@@ -276,23 +276,42 @@ function luSolve(A, b) {
   }
   return x;
 }
+
 function linearRun(kind, p) {
-  const A = p.A || [
-      [4, 1],
-      [1, 3],
-    ],
-    b = p.b || [1, 2],
-    n = A.length;
-  if (!Array.isArray(A) || A.some((r) => r.length !== n) || b.length !== n)
-    throw Error("ขนาดเมทริกซ์ A และเวกเตอร์ b ไม่ถูกต้อง");
-  let x,
-    rows = [];
+  const A = p.A ?? [
+    [4, 1],
+    [1, 3],
+  ];
+
+  const b = p.b ?? [1, 2];
+
+  if (!Array.isArray(A) || A.length === 0) {
+    throw Error("A ต้องเป็นเมทริกซ์ที่ไม่ว่าง");
+  }
+
+  const n = A.length;
+
   if (
-    !n ||
-    A.some((r) => !Array.isArray(r) || r.some((v) => !Number.isFinite(v))) ||
-    b.some((v) => !Number.isFinite(v))
-  )
-    throw Error("A และ b ต้องเป็นตัวเลขจำกัดและไม่ว่าง");
+    A.some(
+      (row) =>
+        !Array.isArray(row) ||
+        row.length !== n ||
+        row.some((v) => typeof v !== "number" || !Number.isFinite(v)),
+    )
+  ) {
+    throw Error("A ต้องเป็นเมทริกซ์จัตุรัสที่มีตัวเลขจำกัด");
+  }
+
+  if (
+    !Array.isArray(b) ||
+    b.length !== n ||
+    b.some((v) => typeof v !== "number" || !Number.isFinite(v))
+  ) {
+    throw Error("b ต้องเป็นเวกเตอร์ตัวเลขที่มีขนาดตรงกับ A");
+  }
+
+  let x;
+  let rows = [];
   if (kind === "Cramer Rule") {
     const det = mathDet(A);
     if (Math.abs(det) < 1e-12) throw Error("det(A)=0 ไม่มีคำตอบเฉพาะ");
@@ -312,6 +331,9 @@ function linearRun(kind, p) {
     x = Array(n).fill(0);
     const tol = positive(p.tol ?? 1e-8, "tol"),
       max = positive(p.maxIter ?? 100, "maxIter");
+    if (!Number.isInteger(max)) {
+      throw Error("maxIter ต้องเป็นจำนวนเต็ม");
+    }
     let converged = false;
     for (let k = 1; k <= max; k++) {
       let old = x.slice(),
@@ -330,7 +352,17 @@ function linearRun(kind, p) {
         ...Object.fromEntries(x.map((v, i) => [`x${i + 1}`, v])),
         error,
       });
-      if (error < tol) {
+      const residual = Math.max(
+        ...A.map((row, i) =>
+          Math.abs(row.reduce((sum, value, j) => sum + value * x[j], 0) - b[i]),
+        ),
+      );
+
+      if (!Number.isFinite(error) || !Number.isFinite(residual)) {
+        throw Error(`${kind} มีค่าที่ไม่จำกัดระหว่างคำนวณ`);
+      }
+
+      if (error < tol && residual < tol) {
         converged = true;
         break;
       }
@@ -342,6 +374,9 @@ function linearRun(kind, p) {
     cholesky(A);
     const tol = positive(p.tol ?? 1e-8, "tol"),
       max = positive(p.maxIter ?? n * 10, "maxIter");
+    if (!Number.isInteger(max)) {
+      throw Error("maxIter ต้องเป็นจำนวนเต็ม");
+    }
     x = Array(n).fill(0);
     let r = b.slice(),
       d = r.slice(),
@@ -500,36 +535,58 @@ function regression(kind, p) {
   }
   return result(value, [], { coefficients: beta });
 }
+
 function integrate(kind, p) {
-  let fx = p.fx || "x^2",
-    a = Number(p.a ?? 0),
-    b = Number(p.b ?? 1),
-    n = Math.max(1, Math.floor(Number(p.n ?? 10))),
-    h = (b - a) / n,
-    F = (x) => f(fx, x);
-  let value;
-  if (kind.includes("Trapezoidal")) {
-    value = (h * (F(a) + F(b))) / 2;
-    for (let i = 1; i < n; i++) value += h * F(a + i * h);
-    if (kind.startsWith("Composite")) {
-    } else value = ((b - a) * (F(a) + F(b))) / 2;
-  } else {
-    if (kind.startsWith("Composite") && n % 2) n++;
-    let N = kind.startsWith("Composite") ? n : 2,
-      H = (b - a) / N;
-    value = F(a) + F(b);
-    for (let i = 1; i < N; i++) value += (i % 2 ? 4 : 2) * F(a + i * H);
-    value *= H / 3;
+  const fx = p.fx || "x^2";
+  const a = finite(p.a ?? 0, "a");
+  const b = finite(p.b ?? 1, "b");
+
+  const composite = kind.startsWith("Composite");
+  const simpson = kind.includes("Simpson");
+
+  let n = composite ? positive(p.n ?? 10, "n") : simpson ? 2 : 1;
+
+  if (!Number.isInteger(n)) {
+    throw Error("n ต้องเป็นจำนวนเต็ม");
   }
-  return result(
-    value,
-    Array.from({ length: n + 1 }, (_, i) => ({
-      i,
-      x: a + i * h,
-      fx: F(a + i * h),
-    })),
-  );
+
+  // Composite Simpson ต้องมีจำนวนช่วงเป็นเลขคู่
+  if (composite && simpson && n % 2 !== 0) {
+    n++;
+  }
+
+  const h = (b - a) / n;
+  const F = (x) => f(fx, x);
+
+  let value = 0;
+
+  if (simpson) {
+    value = F(a) + F(b);
+
+    for (let i = 1; i < n; i++) {
+      value += (i % 2 === 0 ? 2 : 4) * F(a + i * h);
+    }
+
+    value *= h / 3;
+  } else {
+    value = (F(a) + F(b)) / 2;
+
+    for (let i = 1; i < n; i++) {
+      value += F(a + i * h);
+    }
+
+    value *= h;
+  }
+
+  const rows = Array.from({ length: n + 1 }, (_, i) => ({
+    i,
+    x: a + i * h,
+    fx: F(a + i * h),
+  }));
+
+  return result(value, rows, { nUsed: n });
 }
+
 function differentiate(kind, p) {
   const fx = p.fx || "x^2",
     x = finite(p.x ?? 2, "x"),
