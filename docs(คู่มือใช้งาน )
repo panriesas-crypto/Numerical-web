@@ -1,0 +1,69 @@
+# คู่มือใช้งาน Numerical Method Calculator
+
+## 1. ติดตั้งและเปิดเว็บไซต์
+
+1. ติดตั้ง Node.js รุ่น 20 ขึ้นไป
+2. แตกไฟล์ ZIP
+3. เปิด Terminal ในโฟลเดอร์โปรเจกต์
+4. รัน `npm install`
+5. รัน `npm run dev`
+6. เปิด URL ที่ Vite แสดง โดยปกติคือ `http://localhost:5173`
+
+การคำนวณฝั่งหน้าเว็บทำงานได้โดยไม่ต้องเปิด MongoDB
+
+## 2. วิธีคำนวณ
+
+1. เลือก Type of Problem ทั้ง 6 หมวด
+2. เลือก Solution / Method
+3. แก้ไข Input Parameters ในรูปแบบ JSON ให้ตรงกับชนิดวิธี
+4. กด Calculate
+5. อ่านผลลัพธ์และตารางขั้นตอน หากเป็นหมวดที่รองรับกราฟจะมี Interactive Graph
+6. กด Reset Example เพื่อคืนค่าตัวอย่าง หรือ Clear Form เพื่อล้างผลลัพธ์
+
+## 3. เปิด Backend และ MongoDB
+
+1. คัดลอก `.env.example` เป็น `.env`
+2. ตรวจสอบ `MONGODB_URI`
+3. เปิด MongoDB ในเครื่อง
+4. รัน `npm run server`
+5. เปิด `http://localhost:4000/api/health`
+6. เปิด `http://localhost:4000/api-docs` เพื่อดู Swagger
+
+หรือใช้ `docker compose up --build` แล้วเปิด `http://localhost:8080` (ต้องมี Docker Desktop)
+
+เมื่อ Backend เชื่อม MongoDB สำเร็จ ระบบจะเพิ่ม preset ตัวอย่างสำหรับทุกวิธีโดยอัตโนมัติ ปุ่ม Fill Form จะเรียก API เพื่อดึง preset ของหมวดและวิธีที่เลือก
+
+## 4. ตัวอย่าง JSON
+
+### Root of Equation
+```json
+{"fx":"x^2-2","a":1,"b":2,"x0":1.5,"x1":2,"tol":0.000001,"maxIter":100,"gx":"(x+2/x)/2"}
+```
+
+### Linear Algebra
+```json
+{"A":[[4,1],[1,3]],"b":[1,2],"tol":1e-8,"maxIter":100}
+```
+
+### Interpolation / Extrapolation
+```json
+{"xs":[1,2,3,4],"ys":[1,4,9,16],"x":5,"degree":2}
+```
+
+### Integration
+```json
+{"fx":"x^2","a":0,"b":1,"n":10}
+```
+
+### Differentiation
+```json
+{"fx":"x^2","x":2,"h":0.01,"order":1}
+```
+
+## 5. ข้อควรระวัง
+
+- `fx` และ `gx` เป็นนิพจน์ที่ math.js รองรับ ห้ามใส่ JavaScript statement
+- Bisection และ False Position ต้องกำหนดช่วงที่ `f(a)` และ `f(b)` มีเครื่องหมายต่างกัน
+- Cholesky และ Conjugate Gradient ต้องใช้เมทริกซ์ที่เหมาะสม (สมมาตรและ positive definite)
+- Jacobi/Gauss-Seidel อาจไม่ลู่เข้าสำหรับทุกเมทริกซ์
+- Regression แบบพหุนามใช้สมการปกติ จึงอาจไม่เสถียรเมื่อข้อมูลมีสเกลต่างกันมาก
