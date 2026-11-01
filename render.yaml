@@ -1,0 +1,25 @@
+
+services:
+  - type: web
+    name: numerical-method-api
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      - key: MONGODB_URI
+        sync: false
+
+      - key: CLIENT_ORIGIN
+        sync: false
+
+      - key: PRESET_ADMIN_TOKEN
+        sync: false
+
+      - key: SEED_PRESETS
+        value: "true"

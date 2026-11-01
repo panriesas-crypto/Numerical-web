@@ -1,3 +1,4 @@
+
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -5,74 +6,120 @@ import mongoose from "mongoose";
 import swaggerUi from "swagger-ui-express";
 import presets from "./routes/presets.js";
 import { seedPresets } from "./seed.js";
+
 const app = express();
-app.use(cors({ origin: process.env.CLIENT_ORIGIN?.split(",") || true }));
-app.use(express.json({ limit: "1mb" }));
-const swagger = {
-  openapi: "3.0.0",
-  info: { title: "Numerical Method Calculator API", version: "1.0.0" },
-  paths: {
-    "/api/health": {
-      get: {
-        summary: "Health check",
-        responses: { 200: { description: "API is running" } },
-      },
+
+app.disable("x-powered-by");
+app.set("trust proxy", 1);
+
+const allowedOrigins = (
+  process.env.CLIENT_ORIGIN || "http://localhost:5173"
+)
+  .split(",")
+  .map((origin) => origin.trim().replace(/\/$/, ""))
+  .filter(Boolean);
+
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS origin denied"));
     },
-    "/api/presets": {
-      get: {
-        summary: "Get a sample preset",
-        parameters: [
-          { in: "query", name: "category", schema: { type: "string" } },
-          { in: "query", name: "method", schema: { type: "string" } },
-        ],
-        responses: { 200: { description: "Preset or null" } },
+    methods: ["GET", "POST", "OPTIONS"],
+  })
+);
+
+app.use(express.json({ limit: "32kb" }));
+
+app.get("/api/health", (_req, res) => {
+  const connected = mongoose.connection.readyState === 1;
+
+  res.status(connected ? 200 : 503).json({
+    status: connected ? "ok" : "unavailable",
+    database: connected ? "connected" : "disconnected",
+  });
+});
+
+app.use("/api/presets", presets);
+
+if (process.env.NODE_ENV !== "production") {
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup({
+      openapi: "3.0.0",
+      info: {
+        title: "Numerical Method API",
+        version: "1.0.0",
       },
-      post: {
-        summary: "Create or update a preset",
-        requestBody: {
-          required: true,
-          content: {
-            "application/json": {
-              schema: {
-                type: "object",
-                required: ["category", "method", "title", "input"],
-                properties: {
-                  category: { type: "string" },
-                  method: { type: "string" },
-                  title: { type: "string" },
-                  input: { type: "object" },
-                  description: { type: "string" },
-                },
-              },
+      paths: {
+        "/api/health": {
+          get: {
+            responses: {
+              200: { description: "Ready" },
             },
           },
         },
-        responses: { 201: { description: "Saved" } },
       },
-    },
-  },
-};
-app.get("/api/health", (req, res) =>
-  res.json({
-    status: "ok",
-    database:
-      mongoose.connection.readyState === 1 ? "connected" : "disconnected",
-  }),
-);
-app.use("/api/presets", presets);
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swagger));
-app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ message: err.message || "Internal server error" });
-});
-const port = process.env.PORT || 4000;
-app.listen(port, () => console.log(`API listening on ${port}`));
-if (process.env.MONGODB_URI) {
-  mongoose
-    .connect(process.env.MONGODB_URI)
-    .then(async () => {
-      console.log("MongoDB connected");
-      await seedPresets();
     })
-    .catch((e) => console.error("MongoDB connection failed:", e.message));
-} else console.warn("MONGODB_URI not set; API starts without database.");
+  );
+}
+
+app.use((err, _req, res, _next) => {
+  if (err.message === "CORS origin denied") {
+    return res.status(403).json({
+      message: "Origin not allowed",
+    });
+  }
+
+  if (err.type === "entity.too.large") {
+    return res.status(413).json({
+      message: "Payload too large",
+    });
+  }
+
+  console.error("API error:", err);
+
+  res.status(500).json({
+    message: "Internal server error",
+  });
+});
+
+const port = Number(process.env.PORT || 4000);
+
+async function start() {
+  if (!process.env.MONGODB_URI) {
+    throw new Error("MONGODB_URI is required");
+  }
+
+  await mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 10000,
+  });
+
+  console.log("MongoDB connected");
+
+  if (process.env.SEED_PRESETS === "true") {
+    await seedPresets();
+  }
+
+  const server = app.listen(port, "0.0.0.0", () => {
+    console.log(`API listening on ${port}`);
+  });
+
+  const shutdown = async () => {
+    server.close();
+    await mongoose.disconnect();
+    process.exit(0);
+  };
+
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
+}
+
+start().catch((error) => {
+  console.error("Startup failed:", error.message);
+  process.exit(1);
+});
