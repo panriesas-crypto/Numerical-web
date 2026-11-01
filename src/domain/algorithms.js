@@ -87,9 +87,26 @@ function rootRun(kind, p) {
       x = kind === "Bisection" ? (a + b) / 2 : (a * fb - b * fa) / denominator;
 
       const fxv = f(fx, x);
-      const error = rows.length ? Math.abs(x - rows[rows.length - 1].x) : null;
+      const previousX = rows.length ? rows[rows.length - 1].x : null;
 
-      rows.push({ iteration: i, a, b, x, fx: fxv, error });
+      const error = previousX === null ? null : Math.abs(x - previousX);
+
+      const errorPercent =
+        previousX === null
+          ? null
+          : x === 0
+            ? null
+            : (error / Math.abs(x)) * 100;
+
+      rows.push({
+        iteration: i,
+        a,
+        b,
+        x,
+        fx: fxv,
+        error,
+        errorPercent,
+      });
 
       if (Math.abs(fxv) <= tol || (error !== null && error <= tol)) {
         converged = true;
