@@ -1,41 +1,94 @@
+
 import React from "react";
+
+const numeric = (v, digits = 6) =>
+  typeof v === "number" && Number.isFinite(v)
+    ? v.toFixed(digits)
+    : String(v ?? "—");
+
 export default function ResultPanel({ result }) {
-  if (!result) return <p className="muted">ผลลัพธ์จะแสดงหลังจากกด Calculate</p>;
+  if (!result) return null;
+
+  const rows = result.rows || [];
+
+  const isRootTable =
+    result.category === "Root of Equation" &&
+    [
+      "Bisection Method",
+      "False Position Method"
+    ].includes(result.method) &&
+    rows.some(row => "errorPercent" in row);
+
+  const columns = isRootTable
+    ? [
+        { k: "iteration", label: "Iter" },
+        { k: "x", label: "xₖ" },
+        { k: "fx", label: "f(xₖ)" },
+        { k: "errorPercent", label: "Error (%)" }
+      ]
+    : Object.keys(rows[0] || {}).map(k => ({
+        k,
+        label: k
+      }));
+
   return (
-    <section className="panel">
-      <h3>ผลลัพธ์</h3>
-      <p className="answer">
+    <section className="nm-results">
+      <h3>Numerical Result</h3>
+
+      <p className="nm-result-value">
         {typeof result.value === "number"
-          ? Number(result.value).toPrecision(12)
+          ? numeric(result.value, 10)
           : JSON.stringify(result.value)}
       </p>
-      <p className="muted">
-        {result.method} · {result.category}{" "}
-        {result.converged === false ? "· ยังไม่เข้าเงื่อนไข convergence" : ""}
-      </p>
-      {result.coefficients && (
-        <p>Coefficients: {JSON.stringify(result.coefficients)}</p>
+
+      {result.residual !== undefined && (
+        <p className="nm-muted">
+          Residual: {numeric(result.residual, 10)}
+        </p>
       )}
-      {result.residual !== undefined && <p>Residual: {result.residual}</p>}
-      <h4>Step-by-Step / Iteration</h4>
-      {result.rows?.length ? (
-        <div className="table-wrap">
-          <table>
+
+      {result.coefficients && (
+        <p className="nm-muted">
+          Coefficients: {JSON.stringify(result.coefficients)}
+        </p>
+      )}
+
+      {result.converged === false && (
+        <p className="nm-error">
+          ยังไม่เข้าเงื่อนไขการลู่เข้า
+        </p>
+      )}
+
+      <h3>Iterations</h3>
+
+      {rows.length ? (
+        <div className="nm-table-scroll">
+          <table className="nm-table">
             <thead>
               <tr>
-                {Object.keys(result.rows[0]).map((k) => (
-                  <th key={k}>{k}</th>
+                {columns.map(c => (
+                  <th key={c.k}>{c.label}</th>
                 ))}
               </tr>
             </thead>
+
             <tbody>
-              {result.rows.map((row, i) => (
+              {rows.map((row, i) => (
                 <tr key={i}>
-                  {Object.values(row).map((v, j) => (
-                    <td key={j}>
-                      {typeof v === "number"
-                        ? Number(v).toPrecision(7)
-                        : String(v ?? "-")}
+                  {columns.map(c => (
+                    <td key={c.k}>
+                      {row[c.k] == null
+                        ? "—"
+                        : typeof row[c.k] === "number"
+                          ? numeric(
+                              row[c.k],
+                              c.k === "iteration"
+                                ? 0
+                                : c.k === "errorPercent"
+                                  ? 4
+                                  : 6
+                            )
+                          : String(row[c.k])}
                     </td>
                   ))}
                 </tr>
@@ -44,7 +97,9 @@ export default function ResultPanel({ result }) {
           </table>
         </div>
       ) : (
-        <p className="muted">วิธีนี้คืนผลลัพธ์โดยไม่มีตารางวนซ้ำ</p>
+        <p className="nm-muted">
+          ไม่มีตาราง Iteration สำหรับวิธีนี้
+        </p>
       )}
     </section>
   );

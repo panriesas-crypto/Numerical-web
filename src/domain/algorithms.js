@@ -51,6 +51,8 @@ function rootRun(kind, p) {
   b = finite(b, "b");
   tol = positive(tol, "tol");
   maxIter = positive(maxIter, "maxIter");
+  const tolPercent =
+    p.tolPercent == null ? null : positive(p.tolPercent, "tolPercent");
 
   if (!Number.isInteger(maxIter)) {
     throw Error("maxIter ต้องเป็นจำนวนเต็ม");
@@ -108,7 +110,13 @@ function rootRun(kind, p) {
         errorPercent,
       });
 
-      if (Math.abs(fxv) <= tol || (error !== null && error <= tol)) {
+      const hasConverged =
+        tolPercent !== null
+          ? Math.abs(fxv) <= 1e-12 ||
+            (errorPercent !== null && errorPercent <= tolPercent)
+          : Math.abs(fxv) <= tol || (error !== null && error <= tol);
+
+      if (hasConverged) {
         converged = true;
         break;
       }
