@@ -1,0 +1,23 @@
+services:
+  mongodb:
+    image: mongo:7
+    restart: unless-stopped
+    volumes: ["mongo_data:/data/db"]
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      PORT: 4000
+      MONGODB_URI: mongodb://mongodb:27017/numerical_method_calculator
+      CLIENT_ORIGIN: http://localhost:8080
+    depends_on: [mongodb]
+  frontend:
+    build:
+      context: .
+      args:
+        VITE_API_URL: /api
+    restart: unless-stopped
+    ports: ["8080:80"]
+    depends_on: [backend]
+volumes:
+  mongo_data:
